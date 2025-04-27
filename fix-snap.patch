@@ -1,0 +1,104 @@
+From 5c85a0b310a7e7b13dc15103204155bfe188aae8 Mon Sep 17 00:00:00 2001
+From: Boy Callaars <boy@callaa.rs>
+Date: Wed, 23 Apr 2025 15:39:45 +0100
+Subject: [PATCH 1/2] fix: glitching when reordering items
+
+---
+ src/components/DraggableFlatList.tsx | 15 ++++++++++++---
+ 1 file changed, 12 insertions(+), 3 deletions(-)
+
+diff --git a/src/components/DraggableFlatList.tsx b/src/components/DraggableFlatList.tsx
+index 2f59c7a2..7c88afc5 100644
+--- a/src/components/DraggableFlatList.tsx
++++ b/src/components/DraggableFlatList.tsx
+@@ -6,7 +6,12 @@ import React, {
+   useRef,
+   useState,
+ } from "react";
+-import { ListRenderItem, FlatListProps, LayoutChangeEvent } from "react-native";
++import {
++  ListRenderItem,
++  FlatListProps,
++  LayoutChangeEvent,
++  InteractionManager,
++} from "react-native";
+ import {
+   FlatList,
+   Gesture,
+@@ -20,7 +25,7 @@ import Animated, {
+   withSpring,
+ } from "react-native-reanimated";
+ import CellRendererComponent from "./CellRendererComponent";
+-import { DEFAULT_PROPS, isWeb } from "../constants";
++import { DEFAULT_PROPS } from "../constants";
+ import PlaceholderItem from "./PlaceholderItem";
+ import RowItem from "./RowItem";
+ import { DraggableFlatListProps } from "../types";
+@@ -114,6 +119,9 @@ function DraggableFlatListInner<T>(props: DraggableFlatListProps<T>) {
+   if (dataHasChanged) {
+     // When data changes make sure `activeKey` is nulled out in the same render pass
+     activeKey = null;
++    InteractionManager.runAfterInteractions(() => {
++      reset();
++    });
+   }
+ 
+   useEffect(() => {
+@@ -221,7 +229,8 @@ function DraggableFlatListInner<T>(props: DraggableFlatListProps<T>) {
+       }
+ 
+       onDragEnd?.({ from, to, data: newData });
+-      reset();
++
++      setActiveKey(null);
+     }
+   );
+ 
+
+From c777f6274f3d782ae5b61c19e281742825c70071 Mon Sep 17 00:00:00 2001
+From: Boy Callaars <boy@callaa.rs>
+Date: Wed, 23 Apr 2025 17:50:34 +0100
+Subject: [PATCH 2/2] fix: don't change animation style as that causes glitches
+
+---
+ src/components/CellRendererComponent.tsx | 13 +------------
+ 1 file changed, 1 insertion(+), 12 deletions(-)
+
+diff --git a/src/components/CellRendererComponent.tsx b/src/components/CellRendererComponent.tsx
+index d7b833b7..e4e861a6 100644
+--- a/src/components/CellRendererComponent.tsx
++++ b/src/components/CellRendererComponent.tsx
+@@ -4,7 +4,6 @@ import {
+   LayoutChangeEvent,
+   MeasureLayoutOnSuccessCallback,
+   StyleProp,
+-  StyleSheet,
+   ViewStyle,
+ } from "react-native";
+ import Animated, {
+@@ -163,11 +162,7 @@ function CellRendererComponent<T>(props: Props<T>) {
+           ? itemLayoutAnimation
+           : undefined
+       }
+-      style={[
+-        props.style,
+-        baseStyle,
+-        activeKey ? animStyle : styles.zeroTranslate,
+-      ]}
++      style={[props.style, baseStyle, animStyle]}
+       pointerEvents={activeKey ? "none" : "auto"}
+     >
+       <CellProvider isActive={isActive}>{children}</CellProvider>
+@@ -177,12 +172,6 @@ function CellRendererComponent<T>(props: Props<T>) {
+ 
+ export default typedMemo(CellRendererComponent);
+ 
+-const styles = StyleSheet.create({
+-  zeroTranslate: {
+-    transform: [{ translateX: 0 }, { translateY: 0 }],
+-  },
+-});
+-
+ declare global {
+   namespace NodeJS {
+     interface Global {
